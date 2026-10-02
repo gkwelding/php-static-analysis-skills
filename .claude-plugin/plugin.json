@@ -2,7 +2,7 @@
   "name": "php-static-analysis-skills",
   "displayName": "PHP Static Analysis Skills",
   "description": "Fix PHPStan, Larastan and Psalm errors properly and raise a project's analysis level, without ignores, baseline growth or type lies. Laravel and Symfony/Doctrine aware.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "Black Pug Ltd"
   },
