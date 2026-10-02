@@ -34,8 +34,8 @@ Left to themselves, coding agents tend to clear analyser errors the quickest way
 ### Claude Code plugin
 
 ```
-/plugin marketplace add gkwelding/php-static-analysis-skills
-/plugin install php-static-analysis-skills@php-static-analysis-skills
+/plugin marketplace add gkwelding/php-unit-tests-skills
+/plugin install php-static-analysis-skills@blackpug
 ```
 
 Commands become `/php-static-analysis-skills:fix-static-analysis <target>` and `/php-static-analysis-skills:raise-analysis-level <target>`.
