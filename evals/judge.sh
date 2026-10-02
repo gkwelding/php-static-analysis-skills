@@ -53,7 +53,7 @@ EOF
     } > "$fx.judge-prompt.txt"
 
     echo "== judging $fx (A = $a)"
-    claude -p --tools "" --output-format json --json-schema "$schema" --max-budget-usd "$budget" \
+    claude -p --tools "" --setting-sources project --output-format json --json-schema "$schema" --max-budget-usd "$budget" \
         --no-session-persistence ${MODEL:+--model "$MODEL"} \
         < "$fx.judge-prompt.txt" > "$fx.judge.json" 2> "$fx.judge.err" || echo "   judge failed, see $fx.judge.err"
 
