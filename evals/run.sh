@@ -39,7 +39,7 @@ scaffold() {
                 rm -f "$dir/CLAUDE.md" "$dir/AGENTS.md"
                 echo "require __DIR__.'/shop.php';" >> "$dir/routes/web.php" ;;
         esac
-        (cd "$dir" && git init -q && git config core.autocrlf false)
+        (cd "$dir" && git init -q && git config core.longpaths true && git config core.autocrlf false)
     fi
 
     # Copy fixtures on every run so edits reach an existing scaffold.
