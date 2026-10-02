@@ -1,0 +1,151 @@
+diff --git a/src/Cart.php b/src/Cart.php
+index aafbb53..d7d2700 100644
+--- a/src/Cart.php
++++ b/src/Cart.php
+@@ -4,8 +4,12 @@ declare(strict_types=1);
+ 
+ namespace Shop;
+ 
++/**
++ * @implements \IteratorAggregate<int, CartLine>
++ */
+ final class Cart implements \IteratorAggregate, \Countable
+ {
++    /** @var array<string, CartLine> */
+     private array $lines = [];
+ 
+     public function __construct(private readonly Catalogue $catalogue)
+@@ -16,7 +20,7 @@ final class Cart implements \IteratorAggregate, \Countable
+     {
+         $existing = $this->lines[$sku] ?? null;
+         $this->lines[$sku] = new CartLine(
+-            $this->catalogue->find($sku),
++            $this->catalogue->find($sku) ?? throw new \InvalidArgumentException("Unknown SKU {$sku}"),
+             ($existing === null ? 0 : $existing->quantity) + $quantity,
+         );
+     }
+@@ -26,6 +30,9 @@ final class Cart implements \IteratorAggregate, \Countable
+         return array_sum(array_map(fn (CartLine $line) => $line->subtotalPence(), $this->lines));
+     }
+ 
++    /**
++     * @return \ArrayIterator<int, CartLine>
++     */
+     public function getIterator(): \ArrayIterator
+     {
+         return new \ArrayIterator(array_values($this->lines));
+diff --git a/src/Catalogue.php b/src/Catalogue.php
+index 4549ef0..b957f2d 100644
+--- a/src/Catalogue.php
++++ b/src/Catalogue.php
+@@ -6,6 +6,7 @@ namespace Shop;
+ 
+ final class Catalogue
+ {
++    /** @var array<string, Product> */
+     private array $products = [];
+ 
+     public function add(Product $product): void
+@@ -20,9 +21,12 @@ final class Catalogue
+ 
+     public function priceOf(string $sku): int
+     {
+-        return $this->find($sku)->pricePence;
++        return ($this->find($sku) ?? throw new \InvalidArgumentException("Unknown SKU {$sku}"))->pricePence;
+     }
+ 
++    /**
++     * @return list<Product>
++     */
+     public function inCategory(string $category): array
+     {
+         return array_values(array_filter(
+@@ -36,6 +40,6 @@ final class Catalogue
+         $sorted = $this->products;
+         usort($sorted, fn (Product $a, Product $b) => $a->pricePence <=> $b->pricePence);
+ 
+-        return $sorted[0] ?? null;
++        return $sorted[0] ?? throw new \LogicException('The catalogue is empty');
+     }
+ }
+diff --git a/src/CsvImporter.php b/src/CsvImporter.php
+index 1bac2b9..295ba95 100644
+--- a/src/CsvImporter.php
++++ b/src/CsvImporter.php
+@@ -16,7 +16,11 @@ final class CsvImporter
+         $added = 0;
+         foreach (explode("\n", trim($csv)) as $line) {
+             $fields = str_getcsv($line, escape: '');
+-            $this->catalogue->add(new Product($fields[0], $fields[1], $fields[2], $fields[3] ?? null));
++            $price = filter_var($fields[2] ?? null, FILTER_VALIDATE_INT);
++            if ($fields[0] === null || !isset($fields[1]) || $price === false) {
++                throw new \UnexpectedValueException("Invalid CSV line: {$line}");
++            }
++            $this->catalogue->add(new Product($fields[0], $fields[1], $price, $fields[3] ?? null));
+             $added++;
+         }
+ 
+@@ -25,6 +29,11 @@ final class CsvImporter
+ 
+     public function importFile(string $path): int
+     {
+-        return $this->import(file_get_contents($path));
++        $csv = file_get_contents($path);
++        if ($csv === false) {
++            throw new \RuntimeException("Cannot read {$path}");
++        }
++
++        return $this->import($csv);
+     }
+ }
+diff --git a/src/Product.php b/src/Product.php
+index 1b5842c..74aea20 100644
+--- a/src/Product.php
++++ b/src/Product.php
+@@ -14,6 +14,9 @@ final class Product
+     ) {
+     }
+ 
++    /**
++     * @param array{sku: string, name: string, price: int, category?: string|null} $row
++     */
+     public static function fromArray(array $row): self
+     {
+         return new self($row['sku'], $row['name'], $row['price'], $row['category'] ?? null);
+diff --git a/src/SalesReport.php b/src/SalesReport.php
+index e578dc4..b3d2dbe 100644
+--- a/src/SalesReport.php
++++ b/src/SalesReport.php
+@@ -7,24 +7,29 @@ namespace Shop;
+ final class SalesReport
+ {
+     /**
+-     * @param array $sales sku => units sold
++     * @param array<string, int> $sales sku => units sold
++     * @return list<array{name: string, units: int}>
+      */
+     public function topSellers(Catalogue $catalogue, array $sales, int $limit = 3): array
+     {
+         arsort($sales);
+         $top = [];
+         foreach (array_slice($sales, 0, $limit, true) as $sku => $units) {
+-            $top[] = ['name' => $catalogue->find($sku)->name, 'units' => $units];
++            $top[] = ['name' => ($catalogue->find($sku) ?? throw new \InvalidArgumentException("Unknown SKU {$sku}"))->name, 'units' => $units];
+         }
+ 
+         return $top;
+     }
+ 
++    /**
++     * @param array<string, int> $sales sku => units sold
++     * @return array<string, int> category label => revenue in pence
++     */
+     public function revenueByCategory(Catalogue $catalogue, array $sales): array
+     {
+         $revenue = [];
+         foreach ($sales as $sku => $units) {
+-            $product = $catalogue->find($sku);
++            $product = $catalogue->find($sku) ?? throw new \InvalidArgumentException("Unknown SKU {$sku}");
+             $label = $product->categoryLabel();
+             $revenue[$label] = ($revenue[$label] ?? 0) + $product->pricePence * $units;
+         }

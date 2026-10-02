@@ -93,6 +93,7 @@ skills/
         ├── levels.md        # what each level adds, previewing, raising without cheating
         └── shared/          # copy of the above, CI-checked identical
 scripts/build-skills.sh      # packages dist/*.skill for claude.ai
+evals/                       # with/without-skill comparison on plain PHP and Laravel fixtures
 ```
 
 `rules/shared/` exists in both skills so each can be installed alone. CI (`.github/workflows/check-rules.yml`) fails if the copies differ. Check locally with:
@@ -105,14 +106,11 @@ diff -r skills/fix-static-analysis/rules/shared skills/raise-analysis-level/rule
 
 First version. Config keys, CLI flags, error identifiers, Psalm issue types and PHPDoc syntax have been checked against PHPStan 2.2, Larastan 3.12 (Laravel 13), phpstan-symfony 2.0, phpstan-doctrine 2.0 (Symfony 8.1, Doctrine ORM 3.7), Psalm 6.19 and psalm/plugin-symfony 5.3, mostly by running them on small examples. Treat it as a strong starting point and adjust to your house style.
 
-There are no evals yet. The plan is a fixture project per framework (plain PHP, Laravel, Symfony) seeded with known errors at several levels, real bugs among them, and a test suite. Each variant (with and without the skills) would be scored on:
+## Evals
 
-- errors cleared at the target level
-- ignores, suppressions, `ignoreErrors` entries and baseline entries added (should be zero)
-- types widened, inline `@var` / `@property` added, `assert()` and casts added
-- seeded bugs fixed rather than hidden
-- tests still passing, and behaviour changes reported
-- cost per run
+[`evals/`](evals/README.md) runs `fix-static-analysis` against a plain prompt ("Fix the PHPStan errors in this project.") on two fixtures, a plain PHP library and a Laravel 13 app with Larastan, both at level 8 with seeded errors and a test suite that pins behaviour. Each run is scored on errors left under the fixture's own config (so config tricks don't count), new ignores, `ignoreErrors` / baseline entries, `mixed`, inline `@var` / `@property`, `assert()` and casts, the original tests, and cost. A blind review compares the diffs. A stub `claude` shows that a baselined or `@phpstan-ignore`-sprinkled "fix" fails the scores.
+
+First result, one sample on the Laravel fixture: both variants cleared all 23 errors with the tests still green. The plain prompt hid a nullable relation behind `@property-read`; the skill handled it with explicit throws and reported the behaviour changes. The skill cost about the same ($0.52 against $0.47) in 11 turns rather than 27, and won the blind review on correctness, honesty, behaviour and overall, losing only on minimality. `raise-analysis-level` has no eval yet.
 
 ## Licence
 

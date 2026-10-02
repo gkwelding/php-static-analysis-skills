@@ -1,0 +1,145 @@
+diff --git a/app/Http/Controllers/OrderController.php b/app/Http/Controllers/OrderController.php
+index ca5db56..4e388bf 100644
+--- a/app/Http/Controllers/OrderController.php
++++ b/app/Http/Controllers/OrderController.php
+@@ -10,11 +10,11 @@ class OrderController extends Controller
+ {
+     public function show(int $id): JsonResponse
+     {
+-        $order = Order::with('lines')->find($id);
++        $order = Order::with('lines')->findOrFail($id);
+ 
+         return response()->json([
+             'invoice' => $order->invoiceNumber(),
+-            'customer' => $order->customer->name,
++            'customer' => ($order->customer ?? throw new \LogicException("Order {$id} has no customer"))->name,
+             'total_pence' => $order->totalPence(),
+             'shipped_on' => $order->shipped_at?->toDateString(),
+         ]);
+diff --git a/app/Models/Customer.php b/app/Models/Customer.php
+index 9089920..21b5ba2 100644
+--- a/app/Models/Customer.php
++++ b/app/Models/Customer.php
+@@ -2,6 +2,7 @@
+ 
+ namespace App\Models;
+ 
++use Illuminate\Database\Eloquent\Builder;
+ use Illuminate\Database\Eloquent\Model;
+ use Illuminate\Database\Eloquent\Relations\HasMany;
+ 
+@@ -9,12 +10,19 @@ class Customer extends Model
+ {
+     protected $fillable = ['name', 'email', 'tier'];
+ 
++    /**
++     * @return HasMany<Order, $this>
++     */
+     public function orders(): HasMany
+     {
+         return $this->hasMany(Order::class);
+     }
+ 
+-    public function scopeTier($query, string $tier)
++    /**
++     * @param Builder<self> $query
++     * @return Builder<self>
++     */
++    public function scopeTier(Builder $query, string $tier): Builder
+     {
+         return $query->where('tier', $tier);
+     }
+diff --git a/app/Models/Order.php b/app/Models/Order.php
+index f3fb7b5..065d200 100644
+--- a/app/Models/Order.php
++++ b/app/Models/Order.php
+@@ -12,11 +12,17 @@ class Order extends Model
+ 
+     protected $casts = ['shipped_at' => 'datetime'];
+ 
++    /**
++     * @return BelongsTo<Customer, $this>
++     */
+     public function customer(): BelongsTo
+     {
+         return $this->belongsTo(Customer::class);
+     }
+ 
++    /**
++     * @return HasMany<OrderLine, $this>
++     */
+     public function lines(): HasMany
+     {
+         return $this->hasMany(OrderLine::class);
+@@ -27,13 +33,13 @@ public function totalPence(): int
+         return $this->lines->sum(fn (OrderLine $line) => $line->quantity * $line->unit_price_pence);
+     }
+ 
+-    public function shippedOn(): string
++    public function shippedOn(): ?string
+     {
+         return $this->shipped_at?->toDateString();
+     }
+ 
+     public function invoiceNumber(): string
+     {
+-        return 'INV-'.str_pad($this->id, 6, '0', STR_PAD_LEFT);
++        return sprintf('INV-%06d', $this->id);
+     }
+ }
+diff --git a/app/Models/OrderLine.php b/app/Models/OrderLine.php
+index 2aaa96e..7efaf9f 100644
+--- a/app/Models/OrderLine.php
++++ b/app/Models/OrderLine.php
+@@ -11,6 +11,9 @@ class OrderLine extends Model
+ 
+     protected $fillable = ['order_id', 'sku', 'quantity', 'unit_price_pence'];
+ 
++    /**
++     * @return BelongsTo<Order, $this>
++     */
+     public function order(): BelongsTo
+     {
+         return $this->belongsTo(Order::class);
+diff --git a/app/Services/OrderReport.php b/app/Services/OrderReport.php
+index ebc9e0a..1bd1ec9 100644
+--- a/app/Services/OrderReport.php
++++ b/app/Services/OrderReport.php
+@@ -8,16 +8,22 @@
+ 
+ class OrderReport
+ {
+-    public function latestFor(Customer $customer): Order
++    public function latestFor(Customer $customer): ?Order
+     {
+         return $customer->orders()->latest('id')->first();
+     }
+ 
++    /**
++     * @return Collection<int, Order>
++     */
+     public function unshipped(): Collection
+     {
+         return Order::query()->whereNull('shipped_at')->orderBy('id')->get();
+     }
+ 
++    /**
++     * @return array<int, array{name: string, value: int}>
++     */
+     public function topCustomers(int $limit = 3): array
+     {
+         return Customer::query()->with('orders.lines')->get()
+@@ -28,8 +34,12 @@ public function topCustomers(int $limit = 3): array
+             ->all();
+     }
+ 
++    /**
++     * @param Collection<int, Order> $orders
++     * @return array<int, string>
++     */
+     public function emailsFor(Collection $orders): array
+     {
+-        return $orders->map(fn (Order $order) => $order->customer->email)->unique()->values()->all();
++        return $orders->map(fn (Order $order) => ($order->customer ?? throw new \LogicException("Order {$order->id} has no customer"))->email)->unique()->values()->all();
+     }
+ }
