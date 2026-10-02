@@ -1,0 +1,22 @@
+{
+  "name": "php-static-analysis-skills",
+  "displayName": "PHP Static Analysis Skills",
+  "description": "Fix PHPStan, Larastan and Psalm errors properly and raise a project's analysis level, without ignores, baseline growth or type lies. Laravel and Symfony/Doctrine aware.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Black Pug Ltd"
+  },
+  "license": "MIT",
+  "keywords": [
+    "php",
+    "phpstan",
+    "larastan",
+    "psalm",
+    "static-analysis",
+    "laravel",
+    "symfony",
+    "doctrine"
+  ],
+  "homepage": "https://github.com/gkwelding/php-static-analysis-skills",
+  "repository": "https://github.com/gkwelding/php-static-analysis-skills"
+}
